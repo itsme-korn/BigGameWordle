@@ -76,8 +76,31 @@ function doPost(e) {
     }
 
     const sheet = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(SHEET_NAME);
-    // Append data (Timestamp, Baan, Position, Won, Guesses, TimeLeft, Round)
-    sheet.appendRow([
+    
+    // Update the matrix format
+    if (data.baan && data.baan.startsWith("Baan ")) {
+      const baanNum = parseInt(data.baan.replace("Baan ", ""), 10);
+      const roundNum = parseInt(data.round, 10);
+      
+      if (!isNaN(baanNum) && !isNaN(roundNum)) {
+        // Header is row 1, so Baan X is at row X + 1
+        const row = baanNum + 1;
+        // Column A is Baan labels, Round Y is at column Y + 1
+        const col = roundNum + 1;
+        const statusStr = data.won === 'Yes' ? 'SUCCESS' : 'FAILED';
+        
+        sheet.getRange(row, col).setValue(statusStr);
+      }
+    }
+
+    // Append to Logs sheet as history
+    let logSheet = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName("Logs");
+    if (!logSheet) {
+      logSheet = SpreadsheetApp.openById(SPREADSHEET_ID).insertSheet("Logs");
+      logSheet.appendRow(["Timestamp", "Baan", "Position", "Won", "Guesses", "TimeLeft", "Round"]);
+    }
+    
+    logSheet.appendRow([
       new Date(),
       data.baan,
       data.position,

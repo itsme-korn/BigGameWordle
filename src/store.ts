@@ -4,9 +4,9 @@ const ADMIN_SETTINGS_KEY = 'bigGameWordle_adminSettings';
 
 export const defaultSettings: AdminSettings = {
   timerDuration: 120,
-  sheetId: '',
+  sheetId: '1PQhzmC2sU1AQNZ5EfArXvS3ADT4o2YTr-VMYgJyb2XQ',
   sheetTabName: 'Sheet1',
-  appsScriptUrl: '',
+  appsScriptUrl: 'https://script.google.com/macros/s/AKfycbx_nmzZLumtLbyB5UN2zHKErQvNR38NB0sOKE7aU0S6VJ3aG0_vDPthXIX_v2C7LXh_/exec',
   currentRound: 1
 };
 
