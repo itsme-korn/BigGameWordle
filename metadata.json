@@ -1,0 +1,6 @@
+{
+  "name": "BigGameWordle",
+  "description": "A 6-letter Wordle clone with timer and admin capabilities.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
