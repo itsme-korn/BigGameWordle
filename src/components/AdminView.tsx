@@ -1,17 +1,20 @@
 import { useState, useEffect } from 'react';
-import { AdminSettings } from '../types';
-import { Settings, LogOut, Copy, Check } from 'lucide-react';
+import { AdminSettings, SyncTimerState } from '../types';
+import { Settings, LogOut, Copy, Check, Play, Pause, RotateCcw, Clock } from 'lucide-react';
 
 interface AdminViewProps {
   settings: AdminSettings;
+  syncTimer?: SyncTimerState;
   onSave: (settings: AdminSettings) => void;
   onLogout: () => void;
 }
 
-export function AdminView({ settings, onSave, onLogout }: AdminViewProps) {
+export function AdminView({ settings, syncTimer, onSave, onLogout }: AdminViewProps) {
   const [formData, setFormData] = useState<AdminSettings>(settings);
   const [copied, setCopied] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [adminTimeLeft, setAdminTimeLeft] = useState(settings.timerDuration);
+  const [timerActionPending, setTimerActionPending] = useState(false);
 
   useEffect(() => {
     if (saved) {
@@ -19,6 +22,26 @@ export function AdminView({ settings, onSave, onLogout }: AdminViewProps) {
       return () => clearTimeout(timer);
     }
   }, [saved]);
+
+  useEffect(() => {
+    const updateTime = () => {
+      if (syncTimer && syncTimer.state === 'running') {
+        const localNow = Date.now();
+        const elapsedMs = localNow - syncTimer.fetchedAt;
+        const currentServerTime = syncTimer.serverTime + elapsedMs;
+        const elapsedSinceStart = currentServerTime - syncTimer.startTime;
+        setAdminTimeLeft(Math.max(0, syncTimer.duration - Math.floor(elapsedSinceStart / 1000)));
+      } else if (syncTimer && (syncTimer.state === 'idle' || syncTimer.state === 'stopped')) {
+        setAdminTimeLeft(syncTimer.duration);
+      } else {
+        setAdminTimeLeft(formData.timerDuration);
+      }
+    };
+
+    updateTime();
+    const interval = setInterval(updateTime, 250);
+    return () => clearInterval(interval);
+  }, [syncTimer, formData.timerDuration]);
 
   const handleChange = (field: keyof AdminSettings, value: string | number) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -48,66 +71,100 @@ export function AdminView({ settings, onSave, onLogout }: AdminViewProps) {
     }
   };
 
+  const handleTimerAction = async (action: 'startTimer' | 'stopTimer' | 'resetTimer') => {
+    if (!formData.appsScriptUrl) return;
+    setTimerActionPending(true);
+    try {
+      await fetch(formData.appsScriptUrl, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({ 
+          action, 
+          duration: formData.timerDuration 
+        })
+      });
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setTimerActionPending(false);
+    }
+  };
+
+  const formatTime = (seconds: number) => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}:${s.toString().padStart(2, '0')}`;
+  };
+
   const appsScriptCode = `/**
  * Google Apps Script for BigGameWordle Integration
- * Setup Instructions:
+ * 
+ * 🛑 CRITICAL DEPLOYMENT INSTRUCTIONS 🛑
+ * If you update ANY code here, you CANNOT just save it! 
+ * You MUST create a New Deployment!
+ * 
  * 1. Open your Google Spreadsheet.
  * 2. Click "Extensions" -> "Apps Script".
  * 3. Delete any default code in Code.gs and paste this entire block.
- * 4. Replace the SpreadSheet ID below if it's not pre-populated.
- * 5. In Apps Script editor, click "Deploy" (top right) -> "New deployment".
- * 6. Select type: "Web app".
- * 7. Set "Execute as": "Me" (your email) and "Who has access": "Anyone".
- * 8. Click "Deploy", approve permissions, and copy the deployment "Web app URL".
- * 9. Paste that URL into the Admin settings panel of your BigGameWordle app!
+ * 4. Click "Deploy" -> "New deployment" (DO NOT JUST HIT SAVE).
+ * 5. Select type: "Web app".
+ * 6. Set "Execute as": "Me" and "Who has access": "Anyone".
+ * 7. Click "Deploy", approve permissions, and copy the new "Web app URL".
+ * 8. Paste that URL into the Admin settings panel below!
  */
 
 const SPREADSHEET_ID = "${formData.sheetId || 'YOUR_SPREADSHEET_ID_HERE'}";
-const SHEET_NAME = "${formData.sheetTabName || 'Sheet1'}";
 
 function doPost(e) {
   try {
     const data = JSON.parse(e.postData.contents);
+    const properties = PropertiesService.getScriptProperties();
     
     if (data.action === 'setRound') {
-      PropertiesService.getScriptProperties().setProperty('currentRound', data.round.toString());
+      properties.setProperty('currentRound', data.round.toString());
       return ContentService.createTextOutput(JSON.stringify({"status": "success", "round": data.round}))
         .setMimeType(ContentService.MimeType.JSON);
     }
 
-    const sheet = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(SHEET_NAME);
+    if (data.action === 'startTimer') {
+      const now = new Date().getTime();
+      properties.setProperties({
+        'timerStartTime': now.toString(),
+        'timerDuration': (data.duration || 120).toString(),
+        'timerState': 'running'
+      });
+      return ContentService.createTextOutput(JSON.stringify({"status": "success", "timerState": "running"}))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
     
-    // Update the matrix format
-    if (data.baan && data.baan.startsWith("Baan ")) {
-      const baanNum = parseInt(data.baan.replace("Baan ", ""), 10);
-      const roundNum = parseInt(data.round, 10);
-      
-      if (!isNaN(baanNum) && !isNaN(roundNum)) {
-        // Header is row 1, so Baan X is at row X + 1
-        const row = baanNum + 1;
-        // Column A is Baan labels, Round Y is at column Y + 1
-        const col = roundNum + 1;
-        const statusStr = data.won === 'Yes' ? 'SUCCESS' : 'FAILED';
-        
-        sheet.getRange(row, col).setValue(statusStr);
-      }
+    if (data.action === 'stopTimer') {
+      properties.setProperty('timerState', 'stopped');
+      return ContentService.createTextOutput(JSON.stringify({"status": "success", "timerState": "stopped"}))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    
+    if (data.action === 'resetTimer') {
+      properties.setProperties({
+        'timerStartTime': '0',
+        'timerState': 'idle'
+      });
+      return ContentService.createTextOutput(JSON.stringify({"status": "success", "timerState": "idle"}))
+        .setMimeType(ContentService.MimeType.JSON);
     }
 
-    // Append to Logs sheet as history
-    let logSheet = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName("Logs");
-    if (!logSheet) {
-      logSheet = SpreadsheetApp.openById(SPREADSHEET_ID).insertSheet("Logs");
-      logSheet.appendRow(["Timestamp", "Baan", "Position", "Won", "Guesses", "TimeLeft", "Round"]);
+    // Append to History sheet
+    let historySheet = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName("History");
+    if (!historySheet) {
+      historySheet = SpreadsheetApp.openById(SPREADSHEET_ID).insertSheet("History");
+      historySheet.appendRow(["Time", "Which Baan?", "Status"]);
     }
     
-    logSheet.appendRow([
+    const overallStatus = data.won === 'Yes' ? 'SUCCESS' : 'FAILED';
+    historySheet.appendRow([
       new Date(),
       data.baan,
-      data.position,
-      data.won,
-      data.guesses,
-      data.timeLeft,
-      data.round
+      overallStatus
     ]);
     
     return ContentService.createTextOutput(JSON.stringify({"status": "success"}))
@@ -119,8 +176,21 @@ function doPost(e) {
 }
 
 function doGet(e) {
-  const round = PropertiesService.getScriptProperties().getProperty('currentRound') || '1';
-  return ContentService.createTextOutput(JSON.stringify({"round": parseInt(round)}))
+  const properties = PropertiesService.getScriptProperties();
+  const round = properties.getProperty('currentRound') || '1';
+  const timerStartTime = properties.getProperty('timerStartTime') || '0';
+  const timerDuration = properties.getProperty('timerDuration') || '120';
+  const timerState = properties.getProperty('timerState') || 'idle';
+  
+  const response = {
+    "round": parseInt(round),
+    "timerStartTime": parseInt(timerStartTime),
+    "timerDuration": parseInt(timerDuration),
+    "timerState": timerState,
+    "serverTime": new Date().getTime()
+  };
+  
+  return ContentService.createTextOutput(JSON.stringify(response))
     .setMimeType(ContentService.MimeType.JSON);
 }
 
@@ -184,6 +254,67 @@ function doOptions(e) {
                     Round {round}
                   </button>
                 ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Synchronized Game Timer */}
+          <div className="bg-white shadow-sm rounded-lg border border-slate-200 overflow-hidden mb-8">
+            <div className="p-6 border-b border-slate-100 bg-slate-50/50">
+              <h2 className="text-lg font-semibold text-slate-900 mb-2 flex items-center">
+                <Clock className="w-5 h-5 mr-2 text-indigo-600" />
+                Synchronized Game Timer
+              </h2>
+              <p className="text-sm text-slate-500">
+                Control the real-time countdown timer for all active players simultaneously.
+              </p>
+            </div>
+            <div className="p-6 flex flex-col sm:flex-row items-center justify-between gap-6">
+              <div className="text-center sm:text-left">
+                <div className="font-mono text-4xl font-black text-slate-800 tracking-wider">
+                  {formatTime(adminTimeLeft)}
+                </div>
+                <div className="mt-1 flex items-center justify-center sm:justify-start gap-2">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                    Status:
+                  </span>
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider ${
+                    syncTimer?.state === 'running'
+                      ? 'bg-green-100 text-green-800 animate-pulse'
+                      : syncTimer?.state === 'stopped'
+                      ? 'bg-amber-100 text-amber-800'
+                      : 'bg-slate-100 text-slate-800'
+                  }`}>
+                    {syncTimer?.state || 'idle'}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <button
+                  disabled={timerActionPending}
+                  onClick={() => handleTimerAction('startTimer')}
+                  className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-4 py-3 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white rounded-lg font-bold text-xs uppercase tracking-wider transition shadow-sm active:scale-95"
+                >
+                  <Play className="w-3.5 h-3.5 fill-current" />
+                  <span>Start</span>
+                </button>
+                <button
+                  disabled={timerActionPending}
+                  onClick={() => handleTimerAction('stopTimer')}
+                  className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-4 py-3 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white rounded-lg font-bold text-xs uppercase tracking-wider transition shadow-sm active:scale-95"
+                >
+                  <Pause className="w-3.5 h-3.5 fill-current" />
+                  <span>Pause</span>
+                </button>
+                <button
+                  disabled={timerActionPending}
+                  onClick={() => handleTimerAction('resetTimer')}
+                  className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-4 py-3 bg-slate-200 hover:bg-slate-300 disabled:opacity-50 text-slate-700 rounded-lg font-bold text-xs uppercase tracking-wider transition shadow-sm active:scale-95"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Reset</span>
+                </button>
               </div>
             </div>
           </div>

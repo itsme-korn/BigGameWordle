@@ -1,23 +1,26 @@
 import { useState, useEffect, useCallback } from 'react';
-import { AdminSettings, UserData, LetterStatus } from '../types';
+import { AdminSettings, UserData, LetterStatus, SyncTimerState } from '../types';
 import { getRandomWord, isValidWord } from '../words';
 
 interface GameViewProps {
   userData: UserData;
   settings: AdminSettings;
+  syncTimer?: SyncTimerState;
   onExit: () => void;
 }
 
 const MAX_GUESSES = 6;
 const WORD_LENGTH = 6;
 
-export function GameView({ userData, settings, onExit }: GameViewProps) {
+export function GameView({ userData, settings, syncTimer, onExit }: GameViewProps) {
   const [targetWord, setTargetWord] = useState('');
   const [guesses, setGuesses] = useState<string[]>([]);
   const [currentGuess, setCurrentGuess] = useState('');
   const [status, setStatus] = useState<'playing' | 'won' | 'lost'>('playing');
   const [timeLeft, setTimeLeft] = useState(settings.timerDuration);
   const [toastMessage, setToastMessage] = useState('');
+
+  const isTimerRunning = syncTimer?.state === 'running';
 
   // Initialize game
   useEffect(() => {
@@ -28,23 +31,6 @@ export function GameView({ userData, settings, onExit }: GameViewProps) {
     setStatus('playing');
     setToastMessage('');
   }, [settings.timerDuration]);
-
-  // Timer logic
-  useEffect(() => {
-    if (status !== 'playing') return;
-
-    if (timeLeft <= 0) {
-      setStatus('lost');
-      syncData(false);
-      return;
-    }
-
-    const timer = setInterval(() => {
-      setTimeLeft(prev => prev - 1);
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [timeLeft, status]);
 
   const syncData = useCallback(async (won: boolean) => {
     if (!settings.appsScriptUrl) return;
@@ -69,8 +55,45 @@ export function GameView({ userData, settings, onExit }: GameViewProps) {
     }
   }, [settings.appsScriptUrl, settings.currentRound, userData, guesses.length, timeLeft]);
 
+  // Synchronized Timer Logic
+  useEffect(() => {
+    if (status !== 'playing') return;
+
+    const updateTime = () => {
+      if (syncTimer && syncTimer.state === 'running') {
+        const localNow = Date.now();
+        const elapsedMs = localNow - syncTimer.fetchedAt;
+        const currentServerTime = syncTimer.serverTime + elapsedMs;
+        const elapsedSinceStart = currentServerTime - syncTimer.startTime;
+        const secondsLeft = Math.max(0, syncTimer.duration - Math.floor(elapsedSinceStart / 1000));
+        
+        setTimeLeft(secondsLeft);
+
+        if (secondsLeft <= 0) {
+          setStatus('lost');
+          syncData(false);
+        }
+      } else if (syncTimer && (syncTimer.state === 'idle' || syncTimer.state === 'stopped')) {
+        setTimeLeft(syncTimer.duration);
+      } else {
+        // Fallback
+        setTimeLeft(settings.timerDuration);
+      }
+    };
+
+    updateTime(); // initial run
+    const interval = setInterval(updateTime, 250);
+    return () => clearInterval(interval);
+  }, [syncTimer, status, settings.timerDuration, syncData]);
+
   const onKeyPress = useCallback((key: string) => {
     if (status !== 'playing') return;
+
+    if (!isTimerRunning) {
+      setToastMessage('กรุณารอแอดมินเริ่มจับเวลาครับ!');
+      setTimeout(() => setToastMessage(''), 2500);
+      return;
+    }
 
     if (key === 'Enter') {
       if (currentGuess.length !== WORD_LENGTH) return;
@@ -103,7 +126,7 @@ export function GameView({ userData, settings, onExit }: GameViewProps) {
     if (/^[A-Z]$/.test(key) && currentGuess.length < WORD_LENGTH) {
       setCurrentGuess(prev => prev + key);
     }
-  }, [currentGuess, guesses, status, targetWord, syncData]);
+  }, [currentGuess, guesses, status, targetWord, syncData, isTimerRunning]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -206,7 +229,13 @@ export function GameView({ userData, settings, onExit }: GameViewProps) {
         <div className={`font-mono text-5xl font-black tracking-widest ${isLowTime ? 'text-red-600 animate-pulse' : 'text-slate-800'}`}>
           {formatTime(timeLeft)}
         </div>
-        <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-2">Time Remaining</p>
+        {!isTimerRunning ? (
+          <span className="inline-block bg-amber-100 text-amber-800 text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full mt-2 animate-pulse">
+            Waiting for Admin to Start
+          </span>
+        ) : (
+          <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-2">Time Remaining</p>
+        )}
       </div>
 
       {/* Grid */}

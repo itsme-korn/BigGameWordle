@@ -19,3 +19,12 @@ export interface GuessLetter {
   char: string;
   status: LetterStatus;
 }
+
+export interface SyncTimerState {
+  startTime: number;
+  duration: number;
+  state: 'running' | 'idle' | 'stopped';
+  serverTime: number;
+  fetchedAt: number;
+}
+
