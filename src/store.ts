@@ -19,6 +19,9 @@ export function loadAdminSettings(): AdminSettings {
       if (parsed.appsScriptUrl === 'https://script.google.com/macros/s/AKfycbycT65l29_axUxcjQop2cKUnmx4VpoEFIK2yEvcf-Tw-Ez8d-GURO0oez3Y73zYOT4W/exec' || parsed.appsScriptUrl === 'https://script.google.com/macros/s/AKfycbziFsP0QLLGxg9Gnr2P1InBogsW7nHHkEO7VnF7uHy7x9U6-LcsmwhAsWe3OqzrXx_i/exec' || parsed.appsScriptUrl === 'https://script.google.com/macros/s/AKfycbxRh95OxBf4pCbZIzVTtLchNQS3CY7wGIqyBrIYvHM61rXloBtX4kMlehQjhHCgQVSm/exec') {
         parsed.appsScriptUrl = defaultSettings.appsScriptUrl;
       }
+      if (parsed.timerDuration === 120) {
+        parsed.timerDuration = 240;
+      }
       return { ...defaultSettings, ...parsed };
     } catch (e) {
       console.error('Failed to parse admin settings', e);
