@@ -3,7 +3,7 @@ import { AdminSettings } from './types';
 const ADMIN_SETTINGS_KEY = 'bigGameWordle_adminSettings';
 
 export const defaultSettings: AdminSettings = {
-  timerDuration: 120,
+  timerDuration: 240,
   sheetId: '1PQhzmC2sU1AQNZ5EfArXvS3ADT4o2YTr-VMYgJyb2XQ',
   sheetTabName: 'ชีต1',
   appsScriptUrl: 'https://script.google.com/macros/s/AKfycbz_xLJCBlK3aulcehMVbqZg-ByiaO6k_zSOvNm5mdZ6JzgXcarP-bEa20bEPUU8_VHk/exec',
