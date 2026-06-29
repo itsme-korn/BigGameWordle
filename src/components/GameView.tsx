@@ -9,7 +9,7 @@ interface GameViewProps {
 }
 
 const MAX_GUESSES = 6;
-const WORD_LENGTH = 6;
+const WORD_LENGTH = 5;
 
 export function GameView({ userData, settings, onExit }: GameViewProps) {
   const [targetWord, setTargetWord] = useState('');
