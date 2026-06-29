@@ -20,11 +20,3 @@ export interface GuessLetter {
   status: LetterStatus;
 }
 
-export interface SyncTimerState {
-  startTime: number;
-  duration: number;
-  state: 'running' | 'idle' | 'stopped';
-  serverTime: number;
-  fetchedAt: number;
-}
-

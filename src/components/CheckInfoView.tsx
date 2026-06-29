@@ -1,14 +1,11 @@
-import { UserData, SyncTimerState } from '../types';
+import { UserData } from '../types';
 
 interface CheckInfoViewProps {
   userData: UserData;
-  syncTimer?: SyncTimerState;
   onStart: () => void;
 }
 
-export function CheckInfoView({ userData, syncTimer, onStart }: CheckInfoViewProps) {
-  const isTimerRunning = syncTimer?.state === 'running';
-
+export function CheckInfoView({ userData, onStart }: CheckInfoViewProps) {
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-slate-900/40 backdrop-blur-sm">
       <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden border border-slate-200 animate-in fade-in zoom-in-95 duration-200">
@@ -23,35 +20,25 @@ export function CheckInfoView({ userData, syncTimer, onStart }: CheckInfoViewPro
             <p className="text-emerald-950 text-base font-semibold">{userData.baan} | Position: {userData.position}</p>
           </div>
 
-          <div className="w-full p-4 bg-indigo-50/50 rounded-xl border border-indigo-100 text-center">
-            <p className="text-indigo-800 font-bold text-xs uppercase tracking-widest mb-1">Lobby Status</p>
-            {isTimerRunning ? (
-              <div>
-                <p className="text-indigo-950 text-sm font-semibold flex items-center justify-center text-green-600">
-                  <span className="relative flex h-2 w-2 mr-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
-                  </span>
-                  Timer is Active / Game In Progress
-                </p>
-              </div>
-            ) : (
-              <p className="text-slate-500 text-sm">
-                Waiting for Admin to Start the Timer
-              </p>
-            )}
-          </div>
+          <div className="w-full text-center space-y-3">
+            <div className="bg-indigo-50 border border-indigo-100 rounded-lg p-4 animate-pulse">
+              <p className="text-indigo-800 font-semibold text-sm">Waiting for Admin to Start Next Round...</p>
+              <p className="text-indigo-600/80 text-xs mt-1 font-medium">You will be automatically joined when the round begins.</p>
+            </div>
+            
+            <div className="flex items-center justify-center space-x-2 my-2">
+              <div className="h-px bg-slate-200 w-12"></div>
+              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">OR</span>
+              <div className="h-px bg-slate-200 w-12"></div>
+            </div>
 
-          <button
-            onClick={onStart}
-            className={`w-full text-white font-black py-4 rounded-xl shadow-lg transition-all uppercase tracking-tighter text-lg active:scale-98 ${
-              isTimerRunning 
-                ? 'bg-red-600 hover:bg-red-700 shadow-red-100' 
-                : 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-100'
-            }`}
-          >
-            {isTimerRunning ? 'Enter Active Game' : 'Enter Lobby'}
-          </button>
+            <button
+              onClick={onStart}
+              className="w-full text-indigo-600 font-bold py-3 rounded-xl border-2 border-indigo-100 hover:bg-indigo-50 hover:border-indigo-200 transition-all uppercase tracking-tighter text-sm active:scale-98"
+            >
+              Join Manually
+            </button>
+          </div>
         </div>
       </div>
     </div>
